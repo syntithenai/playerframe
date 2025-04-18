@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Player</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .player-page {
+            padding: 20px;
+        }
+        .playlist {
+            margin-top: 20px;
+        }
+        .playlist-item {
+            padding: 8px;
+            margin-bottom: 4px;
+            background-color: #f0f0f0;
+            cursor: pointer;
+        }
+        .playlist-item.active {
+            background-color: #d0d0ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-page">
+        <h2>Music Player</h2>
+        
+        <div class="audio-player">
+            <audio id="audioPlayer">
+                Your browser does not support the audio element.
+            </audio>
+            <div>
+                <span id="currentSong">No song selected</span>
+            </div>
+        </div>
+        
+        <div class="playlist" id="playlist">
+            <h3>Playlist</h3>
+            <!-- Playlist items will be dynamically added here -->
+        </div>
+    </div>
+    
+    <script src="../js/player.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Player Controller</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Music Player Controller</h1>
+        
+        <div class="controls">
+            <button id="playPauseButton">Play</button>
+        </div>
+        
+        <div class="speed-controls">
+            <button id="tortoiseButton" title="Decrease playback rate">🐢</button>
+            <button id="hareButton" title="Increase playback rate">🐇</button>
+            <div class="rate-display" id="rateDisplay">1.0x</div>
+        </div>
+        
+        <div class="seek-container">
+            <div class="time-display" id="currentTime">0:00</div>
+            <input type="range" id="seekSlider" min="0" max="100" value="0">
+            <div class="time-display" id="duration">0:00</div>
+        </div>
+        
+        <div class="player-container">
+            <iframe id="playerFrame" src="player/index.html" width="100%" height="500px"></iframe>
+        </div>
+    </div>
+    
+    <script src="js/main.js"></script>
+</body>
+</html>

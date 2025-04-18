@@ -1,0 +1,149 @@
+/* General styles */
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+    background-color: #f9f9f9;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+h1, h2, h3 {
+    color: #333;
+}
+
+/* Controls */
+.controls {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Speed controls */
+.speed-controls {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 10px;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+}
+
+#tortoiseButton, #hareButton {
+    font-size: 18px;
+    padding: 5px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rate-display {
+    font-family: monospace;
+    font-size: 16px;
+    color: #333;
+    font-weight: bold;
+    min-width: 50px;
+    text-align: center;
+    padding: 4px 8px;
+    background-color: #fff;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+button {
+    padding: 8px 16px;
+    background-color: #4a6ea9;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #385888;
+}
+
+/* Seek container */
+.seek-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 10px;
+}
+
+#seekSlider {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    border-radius: 3px;
+    background: #ddd;
+    outline: none;
+}
+
+#seekSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #4a6ea9;
+    cursor: pointer;
+}
+
+#seekSlider::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #4a6ea9;
+    cursor: pointer;
+}
+
+.time-display {
+    font-family: monospace;
+    font-size: 14px;
+    min-width: 45px;
+    color: #555;
+}
+
+/* Player container */
+.player-container {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+iframe {
+    border: none;
+    display: block;
+}
+
+/* Audio Player */
+.audio-player {
+    margin-bottom: 20px;
+}
+
+audio {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+#currentSong {
+    font-style: italic;
+    color: #666;
+}
