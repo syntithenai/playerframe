@@ -21,17 +21,74 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPlaybackRate = 1.0;
     let isPlaying = false;
     
+    // Variables to track current media
+    let currentMediaType = null; // 'media' or 'youtube'
+    let currentMediaSource = null;
+    let currentYoutubeId = null;
+    
+    // Flag to track if the iframe is ready to receive messages
+    let isIframeReady = false;
+    
+    // Get the current query parameters from the main page URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const mediaSource = urlParams.get('mediasrc');
+    const youtubeId = urlParams.get('ytid');
+    
+    // Set initial media state based on query parameters
+    if (youtubeId) {
+        currentMediaType = 'youtube';
+        currentYoutubeId = youtubeId;
+        console.log('URL parameter found: YouTube ID =', youtubeId);
+    } else if (mediaSource) {
+        currentMediaType = 'media';
+        currentMediaSource = mediaSource;
+        console.log('URL parameter found: Media source =', mediaSource);
+    } else {
+        // Default to the sample song
+        currentMediaType = 'media';
+        currentMediaSource = 'high street tarantella.mp3';
+        console.log('No URL parameters found, using default song');
+    }
+    
+    // Set the iframe source to just the base player page
+    const baseUrl = "player/index.html";
+    playerFrame.src = baseUrl;
+    
+    // Function to attempt sending media information to the iframe
+    function attemptLoadMedia() {
+        if (isIframeReady && playerFrame.contentWindow) {
+            console.log('Attempting to load media based on URL parameters');
+            if (currentMediaType === 'youtube') {
+                sendMessage('loadYouTube', { videoId: currentYoutubeId });
+            } else if (currentMediaType === 'media') {
+                sendMessage('loadMedia', { src: currentMediaSource });
+            }
+            return true;
+        }
+        return false;
+    }
+    
     // Wait for iframe to load
     playerFrame.addEventListener('load', () => {
         console.log('Player iframe loaded');
+        isIframeReady = true;
+        
+        // Try to load media, but don't force it here as we'll wait for iframeReady message
+        attemptLoadMedia();
     });
     
     // Send message to iframe
     function sendMessage(action, data = {}) {
-        playerFrame.contentWindow.postMessage({
-            action,
-            ...data
-        }, '*');
+        // Make sure iframe has loaded before sending messages
+        if (isIframeReady && playerFrame.contentWindow) {
+            console.log('Sending message to iframe:', action, data);
+            playerFrame.contentWindow.postMessage({
+                action,
+                ...data
+            }, '*');
+        } else {
+            console.error("Cannot send message: iframe not ready");
+        }
     }
     
     // Format time in seconds to MM:SS format
@@ -126,13 +183,42 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTimeDisplay.textContent = formatTime(seekTime);
     });
     
+    // Function to update the URL query parameters without reloading the page
+    function updateUrlQueryParams() {
+        const url = new URL(window.location);
+        
+        // Clear existing parameters
+        url.searchParams.delete('mediasrc');
+        url.searchParams.delete('ytid');
+        
+        // Set the appropriate parameter based on current media
+        if (currentMediaType === 'youtube' && currentYoutubeId) {
+            url.searchParams.set('ytid', currentYoutubeId);
+        } else if (currentMediaType === 'media' && currentMediaSource) {
+            url.searchParams.set('mediasrc', currentMediaSource);
+        }
+        
+        // Update the URL without reloading the page
+        window.history.replaceState({}, '', url);
+    }
+    
     // Listen for messages from iframe
     window.addEventListener('message', (event) => {
+        console.log("Message received from iframe:", event.data);
         const data = event.data;
         
         switch (data.status) {
+            case 'iframeReady':
+                // Iframe is ready to receive messages
+                console.log('Received iframeReady signal');
+                isIframeReady = true;
+                
+                // This is the critical moment - now we can be confident the iframe is ready
+                attemptLoadMedia();
+                break;
+                
             case 'playing':
-                console.log('Now playing:', data.song);
+                console.log('Now playing:', data.media || 'Unknown media');
                 isPlaying = true;
                 updatePlayPauseButton();
                 break;
@@ -142,12 +228,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 isPlaying = false;
                 updatePlayPauseButton();
                 break;
-                
-            case 'stopped':
-                console.log('Playback stopped');
+            
+            case 'ended':
+                console.log('Playback ended');
                 isPlaying = false;
                 updatePlayPauseButton();
-                updateSeekBar(0, mediaDuration);
+                break;
+                
+            case 'loaded':
+                console.log('Media loaded:', data.media || 'Unknown media');
+                isPlaying = false;
+                updatePlayPauseButton();
                 break;
                 
             case 'progress':
@@ -179,4 +270,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
         }
     });
+
+    // For direct access - to be used in debugging or from console
+    window.playerController = {
+        loadMedia: function(src) {
+            currentMediaType = 'media';
+            currentMediaSource = src;
+            sendMessage('loadMedia', { src: src });
+            updateUrlQueryParams();
+        },
+        loadYouTube: function(videoId) {
+            currentMediaType = 'youtube';
+            currentYoutubeId = videoId;
+            sendMessage('loadYouTube', { videoId: videoId });
+            updateUrlQueryParams();
+        }
+    };
+    
+    // Update URL parameters to reflect the current media
+    updateUrlQueryParams();
 });

@@ -1,97 +1,208 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Get references to DOM elements
-    const audioPlayer = document.getElementById('audioPlayer');
-    const currentSongDisplay = document.getElementById('currentSong');
-    const playlistContainer = document.getElementById('playlist');
+    const mediaPlayer = document.getElementById('mediaPlayer');
+    const youtubePlayerDiv = document.getElementById('youtubePlayer');
     
-    // Variable to track progress updates interval
+    // Add console logs for debugging
+    console.log("Player.js loaded");
+    console.log("Media player element found:", mediaPlayer ? "yes" : "no");
+    console.log("YouTube player div found:", youtubePlayerDiv ? "yes" : "no");
+    
+    // Variables
     let progressInterval = null;
+    let ytPlayer = null;
+    let currentMediaType = null; // 'media' for audio/video, 'youtube' for YT
+    let mediaTitle = "Media";
     
-    // Songs list - will dynamically scan the music directory
-    const songs = [
-        { title: "High Street Tarantella", file: "../music/high street tarantella.mp3" }
-    ];
+    // Send a ready message to the parent window as soon as the iframe is loaded
+    sendMessageToParent('iframeReady');
     
-    // Initialize the player
-    function initPlayer() {
-        // Create playlist items
-        songs.forEach((song, index) => {
-            const playlistItem = document.createElement('div');
-            playlistItem.classList.add('playlist-item');
-            playlistItem.textContent = song.title;
-            playlistItem.dataset.index = index;
-            
-            playlistItem.addEventListener('click', () => {
-                loadSong(index);
-                playSong();
-            });
-            
-            playlistContainer.appendChild(playlistItem);
-        });
+    // Initialize regular media player
+    function initMediaPlayer(src) {
+        // Show media player, hide YouTube player
+        mediaPlayer.classList.remove('hidden');
+        youtubePlayerDiv.classList.add('hidden');
         
-        // Load the first song by default
-        if (songs.length > 0) {
-            loadSong(0);
+        // Process the source URL
+        let mediaSource;
+        if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('../') || src.startsWith('./')) {
+            // Full URL or relative path
+            mediaSource = src;
+        } else {
+            // Local file in music folder
+            mediaSource = `../music/${src}`;
         }
         
-        // Add event listener for play state changes
-        audioPlayer.addEventListener('play', () => {
-            sendMessageToParent('playing', { song: currentSongDisplay.textContent });
-        });
+        console.log("Setting media source:", mediaSource);
+        mediaTitle = src.split('/').pop(); // Extract filename from path
         
-        audioPlayer.addEventListener('pause', () => {
-            // Only send paused message if not at the end of the track
-            if (audioPlayer.currentTime < audioPlayer.duration) {
-                sendMessageToParent('paused');
+        // Set media source
+        mediaPlayer.src = mediaSource;
+        
+        // Set crossOrigin if it's a remote URL
+        if (mediaSource.startsWith('http')) {
+            mediaPlayer.crossOrigin = 'anonymous';
+        }
+        
+        // Configure event handlers if not already configured
+        if (!mediaPlayer.configured) {
+            mediaPlayer.addEventListener('play', () => {
+                console.log("Media play event fired");
+                sendMessageToParent('playing', { media: mediaTitle });
+                // Start sending progress updates
+                startProgressUpdates();
+            });
+            
+            mediaPlayer.addEventListener('pause', () => {
+                console.log("Media pause event fired");
+                // Only send paused message if not at the end of the track
+                if (mediaPlayer.currentTime < mediaPlayer.duration) {
+                    sendMessageToParent('paused');
+                }
+                // Stop progress updates when paused
+                stopProgressUpdates();
+            });
+            
+            mediaPlayer.addEventListener('ended', () => {
+                console.log("Media ended event fired");
+                sendMessageToParent('ended');
+                stopProgressUpdates();
+            });
+            
+            mediaPlayer.addEventListener('loadedmetadata', () => {
+                console.log("Media loadedmetadata event fired, duration:", mediaPlayer.duration);
+                // Send duration information when the media is loaded
+                sendMessageToParent('duration', { duration: mediaPlayer.duration });
+            });
+            
+            mediaPlayer.addEventListener('error', (e) => {
+                console.error("Media error:", mediaPlayer.error, e);
+            });
+            
+            mediaPlayer.configured = true;
+        }
+        
+        // Notify parent that media is loaded
+        currentMediaType = 'media';
+        sendMessageToParent('loaded', { media: mediaTitle });
+    }
+    
+    // Initialize YouTube player
+    function initYouTubePlayer(videoId) {
+        // Show YouTube player, hide media player
+        youtubePlayerDiv.classList.remove('hidden');
+        mediaPlayer.classList.add('hidden');
+        
+        mediaTitle = `YouTube: ${videoId}`;
+        currentMediaType = 'youtube';
+        
+        // Create YouTube player when API is ready
+        if (typeof YT !== 'undefined' && YT.Player) {
+            createYouTubePlayer(videoId);
+        } else {
+            window.onYouTubeIframeAPIReady = () => {
+                createYouTubePlayer(videoId);
+            };
+        }
+    }
+    
+    // Create YouTube player instance
+    function createYouTubePlayer(videoId) {
+        // If player already exists, destroy it and create a new one
+        if (ytPlayer) {
+            try {
+                ytPlayer.destroy();
+            } catch (e) {
+                console.error("Error destroying YouTube player:", e);
+            }
+        }
+        
+        ytPlayer = new YT.Player('youtubePlayer', {
+            videoId: videoId,
+            playerVars: {
+                'autoplay': 0,
+                'controls': 0,
+                'disablekb': 1,
+                'playsinline': 1,
+                'rel': 0,
+                'modestbranding': 1,
+                'fs': 0
+            },
+            events: {
+                'onReady': onYouTubePlayerReady,
+                'onStateChange': onYouTubePlayerStateChange
             }
         });
     }
     
-    // Load song
-    function loadSong(index) {
-        if (index >= 0 && index < songs.length) {
-            // Update active song in playlist
-            const playlistItems = document.querySelectorAll('.playlist-item');
-            playlistItems.forEach(item => item.classList.remove('active'));
-            playlistItems[index].classList.add('active');
-            
-            // Set the audio source
-            audioPlayer.src = songs[index].file;
-            currentSongDisplay.textContent = songs[index].title;
-            
-            // Notify the parent window
-            sendMessageToParent('loaded', { song: songs[index].title });
+    // YouTube player ready callback
+    function onYouTubePlayerReady(event) {
+        // Send info that player is loaded
+        sendMessageToParent('loaded', { media: mediaTitle });
+        
+        // Send duration when ready
+        const duration = ytPlayer.getDuration();
+        sendMessageToParent('duration', { duration: duration });
+    }
+    
+    // YouTube player state change callback
+    function onYouTubePlayerStateChange(event) {
+        switch (event.data) {
+            case YT.PlayerState.PLAYING:
+                sendMessageToParent('playing', { media: mediaTitle });
+                // Start sending progress updates
+                startYouTubeProgressUpdates();
+                break;
+                
+            case YT.PlayerState.PAUSED:
+                sendMessageToParent('paused');
+                // Stop progress updates when paused
+                stopProgressUpdates();
+                break;
+                
+            case YT.PlayerState.ENDED:
+                sendMessageToParent('ended');
+                stopProgressUpdates();
+                break;
         }
     }
     
-    // Play the current song
-    function playSong() {
-        audioPlayer.play()
-            .then(() => {
-                // Start sending progress updates
-                startProgressUpdates();
-            })
-            .catch(error => {
-                console.error("Error playing audio:", error);
+    // Play media
+    function playMedia() {
+        if (currentMediaType === 'youtube' && ytPlayer) {
+            ytPlayer.playVideo();
+        } else if (currentMediaType === 'media') {
+            mediaPlayer.play().catch(error => {
+                console.error("Error playing media:", error);
             });
+        }
     }
     
-    // Pause the current song
-    function pauseSong() {
-        audioPlayer.pause();
-        
-        // Stop progress updates when paused
-        stopProgressUpdates();
+    // Pause media
+    function pauseMedia() {
+        if (currentMediaType === 'youtube' && ytPlayer) {
+            ytPlayer.pauseVideo();
+        } else if (currentMediaType === 'media') {
+            mediaPlayer.pause();
+        }
     }
     
     // Seek to a specific position
     function seekTo(time) {
-        if (time >= 0 && time <= audioPlayer.duration) {
-            audioPlayer.currentTime = time;
+        if (currentMediaType === 'youtube' && ytPlayer) {
+            ytPlayer.seekTo(time, true);
             sendMessageToParent('seeked', { 
-                currentTime: audioPlayer.currentTime,
-                duration: audioPlayer.duration 
+                currentTime: ytPlayer.getCurrentTime(),
+                duration: ytPlayer.getDuration() 
             });
+        } else if (currentMediaType === 'media') {
+            if (time >= 0 && time <= mediaPlayer.duration) {
+                mediaPlayer.currentTime = time;
+                sendMessageToParent('seeked', { 
+                    currentTime: mediaPlayer.currentTime,
+                    duration: mediaPlayer.duration 
+                });
+            }
         }
     }
     
@@ -100,25 +211,53 @@ document.addEventListener('DOMContentLoaded', () => {
         // Ensure rate is rounded to 1 decimal place (increments of 0.1)
         rate = Math.round(rate * 10) / 10;
         
-        if (rate >= 0.25 && rate <= 3.0) {
-            audioPlayer.playbackRate = rate;
-            sendMessageToParent('rateChanged', { 
-                rate: audioPlayer.playbackRate 
-            });
+        // Clamp rate between 0.25 and 3.0
+        rate = Math.max(0.25, Math.min(3.0, rate));
+        
+        if (currentMediaType === 'youtube' && ytPlayer) {
+            // YouTube supports rates: 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2
+            ytPlayer.setPlaybackRate(rate);
+            sendMessageToParent('rateChanged', { rate: rate });
+        } else if (currentMediaType === 'media') {
+            mediaPlayer.playbackRate = rate;
+            sendMessageToParent('rateChanged', { rate: mediaPlayer.playbackRate });
         }
     }
     
-    // Start sending progress updates
+    // Start sending progress updates for media player
     function startProgressUpdates() {
         // Clear any existing interval
         stopProgressUpdates();
         
         // Set up a new interval to send progress updates every second
         progressInterval = setInterval(() => {
-            sendMessageToParent('progress', { 
-                currentTime: audioPlayer.currentTime,
-                duration: audioPlayer.duration 
-            });
+            if (currentMediaType === 'youtube' && ytPlayer) {
+                sendMessageToParent('progress', { 
+                    currentTime: ytPlayer.getCurrentTime(),
+                    duration: ytPlayer.getDuration() 
+                });
+            } else if (currentMediaType === 'media') {
+                sendMessageToParent('progress', { 
+                    currentTime: mediaPlayer.currentTime,
+                    duration: mediaPlayer.duration 
+                });
+            }
+        }, 1000);
+    }
+    
+    // Start YouTube specific progress updates
+    function startYouTubeProgressUpdates() {
+        // Same as startProgressUpdates, but calling it separately
+        // to make sure it's called for YouTube
+        stopProgressUpdates();
+        
+        progressInterval = setInterval(() => {
+            if (ytPlayer && ytPlayer.getCurrentTime) {
+                sendMessageToParent('progress', { 
+                    currentTime: ytPlayer.getCurrentTime(),
+                    duration: ytPlayer.getDuration() 
+                });
+            }
         }, 1000);
     }
     
@@ -132,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Send message to parent window
     function sendMessageToParent(status, data = {}) {
+        console.log("Sending message to parent:", status, data);
         window.parent.postMessage({
             status,
             ...data
@@ -140,15 +280,24 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Listen for messages from parent window
     window.addEventListener('message', (event) => {
+        console.log("Message received from parent:", event.data);
         const data = event.data;
         
         switch (data.action) {
+            case 'loadMedia':
+                initMediaPlayer(data.src);
+                break;
+                
+            case 'loadYouTube':
+                initYouTubePlayer(data.videoId);
+                break;
+                
             case 'play':
-                playSong();
+                playMedia();
                 break;
                 
             case 'pause':
-                pauseSong();
+                pauseMedia();
                 break;
                 
             case 'seek':
@@ -163,34 +312,4 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Unknown action:', data.action);
         }
     });
-    
-    // Audio player events
-    audioPlayer.addEventListener('loadedmetadata', () => {
-        // Send duration information when the audio metadata is loaded
-        sendMessageToParent('duration', { 
-            duration: audioPlayer.duration 
-        });
-    });
-    
-    audioPlayer.addEventListener('ended', () => {
-        // Find the index of the current song
-        const currentIndex = songs.findIndex(song => 
-            song.title === currentSongDisplay.textContent
-        );
-        
-        // Stop progress updates
-        stopProgressUpdates();
-        
-        // Notify parent that playback has ended
-        sendMessageToParent('ended');
-        
-        // Load and play the next song if available
-        if (currentIndex < songs.length - 1) {
-            loadSong(currentIndex + 1);
-            playSong();
-        }
-    });
-    
-    // Initialize the player
-    initPlayer();
 });
